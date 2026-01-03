@@ -13,7 +13,7 @@ import { useTranslations } from '@/i18';
 import { findRowIndex } from '../utils';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/20/solid';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { RefObject, useCallback } from 'preact/compat';
+import { RefObject, useCallback, useMemo } from 'preact/compat';
 import { CHECKBOX_COLUMN_ID, ESTIMATED_ROW_HEIGHT } from '@/constants';
 import { useImporterDefinition } from '@/importer/hooks';
 
@@ -45,11 +45,22 @@ export default function SheetDataEditorTable({
   const { t } = useTranslations();
   const { availableActions } = useImporterDefinition();
 
+  // Create a Map for O(1) error lookups instead of O(n) filtering
+  const errorMap = useMemo(() => {
+    const map = new Map<string, ImporterValidationError[]>();
+    sheetValidationErrors.forEach((error) => {
+      const key = `${error.rowIndex}-${error.columnId}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(error);
+    });
+    return map;
+  }, [sheetValidationErrors]);
+
   function cellErrors(columnId: string, rowIndex: number) {
-    return sheetValidationErrors.filter(
-      (validation) =>
-        validation.columnId === columnId && validation.rowIndex === rowIndex
-    );
+    const key = `${rowIndex}-${columnId}`;
+    return errorMap.get(key) || [];
   }
 
   const headerClass =
@@ -58,6 +69,16 @@ export default function SheetDataEditorTable({
     'text-sm font-medium whitespace-nowrap text-gray-900 border-b border-gray-300';
 
   const rows = table.getRowModel().rows;
+
+  // Create a Map for O(1) row index lookups
+  const rowIndexMap = useMemo(() => {
+    const sheetRows = allData.find((d) => d.sheetId === sheetDefinition.id)?.rows || [];
+    const map = new Map<SheetRow, number>();
+    sheetRows.forEach((row, index) => {
+      map.set(row, index);
+    });
+    return map;
+  }, [allData, sheetDefinition.id]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -196,8 +217,8 @@ export default function SheetDataEditorTable({
               const columnId =
                 sheetDefinition.columns[cellIndex - (hasCheckboxColumn ? 1 : 0)]
                   .id;
-              // TODO: Check if it works correctly for 2 identical rows
-              const rowIndex = findRowIndex(
+              // Use O(1) Map lookup instead of O(n) indexOf
+              const rowIndex = rowIndexMap.get(row.original) ?? findRowIndex(
                 allData,
                 sheetDefinition.id,
                 row.original
@@ -220,7 +241,7 @@ export default function SheetDataEditorTable({
                     }
                     allData={allData}
                     value={cell.getValue() as ImporterOutputFieldType}
-                    onUpdated={(value) =>
+                    onUpdated={(value: ImporterOutputFieldType) =>
                       onCellValueChanged(rowIndex, columnId, value)
                     }
                     clearRowsSelection={() => setSelectedRows([])}

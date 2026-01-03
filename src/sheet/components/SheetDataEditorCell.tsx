@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
+import { memo } from 'preact/compat';
 import {
   EnumLabelDict,
   ImporterOutputFieldType,
@@ -31,7 +32,7 @@ interface Props {
   enumLabelDict: EnumLabelDict;
 }
 
-export default function SheetDataEditorCell({
+const SheetDataEditorCell = memo(function SheetDataEditorCell({
   rowId,
   columnDefinition,
   value,
@@ -58,15 +59,17 @@ export default function SheetDataEditorCell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editMode]);
 
-  const { displayValue, valueEmpty } = getCellDisplayValue(
-    columnDefinition,
-    value,
-    enumLabelDict
+  const { displayValue, valueEmpty } = useMemo(
+    () => getCellDisplayValue(columnDefinition, value, enumLabelDict),
+    [columnDefinition, value, enumLabelDict]
   );
 
-  const readOnly =
-    isColumnReadOnly(columnDefinition) ||
-    !availableActions.includes('editRows');
+  const readOnly = useMemo(
+    () =>
+      isColumnReadOnly(columnDefinition) ||
+      !availableActions.includes('editRows'),
+    [columnDefinition, availableActions]
+  );
 
   const longPressHandlers = useLongPress(
     () => {
@@ -142,17 +145,19 @@ export default function SheetDataEditorCell({
   }
 
   if (columnDefinition.type === 'reference') {
-    const referenceData = extractReferenceColumnPossibleValues(
-      columnDefinition,
-      allData
-    );
+    const selectOptions = useMemo(() => {
+      const referenceData = extractReferenceColumnPossibleValues(
+        columnDefinition,
+        allData
+      );
 
-    const labelDict = getLabelDict(columnDefinition, enumLabelDict);
+      const labelDict = getLabelDict(columnDefinition, enumLabelDict);
 
-    const selectOptions = referenceData.map((value) => ({
-      label: String(getLabelDictValue(labelDict, value)),
-      value,
-    }));
+      return referenceData.map((value) => ({
+        label: String(getLabelDictValue(labelDict, value)),
+        value,
+      }));
+    }, [columnDefinition, allData, enumLabelDict]);
 
     return (
       <Select
@@ -192,4 +197,6 @@ export default function SheetDataEditorCell({
       ref={inputRef}
     />
   );
-}
+});
+
+export default SheetDataEditorCell;
