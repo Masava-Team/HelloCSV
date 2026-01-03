@@ -1,6 +1,6 @@
 {
   "name": "@masava-team/hellocsv",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A modern CSV importer written in Preact",
   "author": "HelloCSV",
   "license": "MIT",
@@ -55,19 +55,23 @@
       "require": "./dist/react/index.cjs.js",
       "types": "./dist/types-react/index.d.ts"
     },
-    "./react/index.css": "./dist/react/hello-csv.css",
+    "./react/index.css": "./dist/react/hellocsv.css",
+    "./react/hellocsv.css": "./dist/react/hellocsv.css",
     "./preact": {
       "import": "./dist/preact/index.es.js",
       "require": "./dist/preact/index.cjs.js",
       "types": "./dist/types-preact/index.d.ts"
     },
-    "./preact/index.css": "./dist/preact/hello-csv.css",
+    "./preact/index.css": "./dist/preact/hellocsv.css",
+    "./preact/hellocsv.css": "./dist/preact/hellocsv.css",
     "./bundled": {
       "import": "./dist/bundled/index.es.js",
       "require": "./dist/bundled/index.cjs.js",
       "types": "./dist/types-preact/index.d.ts"
     },
-    "./bundled/index.css": "./dist/bundled/hello-csv.css"
+    "./bundled/index.css": "./dist/bundled/hellocsv.css",
+    "./bundled/hellocsv.css": "./dist/bundled/hellocsv.css",
+    "./dist/*": "./dist/*"
   },
   "peerDependencies": {
     "preact": "^10.25.4",
