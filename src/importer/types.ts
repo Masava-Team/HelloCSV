@@ -105,6 +105,13 @@ export interface ImporterState {
    */
   validationRunId?: string;
   importStatistics?: ImportStatistics;
+  /**
+   * Tracks which rows have been modified and need re-validation.
+   * Map<sheetId, Set<rowIndex>>
+   * When undefined, full validation is needed. When defined but empty,
+   * no rows are dirty.
+   */
+  dirtyRows?: Map<string, Set<number>>;
 }
 
 export interface ImporterSubmissionFile {

@@ -14,7 +14,7 @@ import { buildSuggestedHeaderMappings } from '@/mapper/utils';
 import { convertCsvFile } from '@/uploader/utils';
 import { parseCsv } from '@/parser';
 import { reducer } from './reducer';
-import { applyValidations } from '../validators';
+import { applyValidations, applyValidationsToSpecificRows } from '../validators';
 import { generateValidationRunId } from '@/validators/utils';
 import { NUMBER_OF_EMPTY_ROWS_FOR_MANUAL_DATA_INPUT } from '@/constants';
 import { getMappedData } from '@/mapper';
@@ -92,10 +92,22 @@ class StateBuilder {
       state = reducer(state, step);
     });
 
-    const validationErrors = await applyValidations(
-      this.importerDefinition.sheets,
-      state.sheetData
-    ).catch(() => state.validationErrors);
+    // Use incremental validation if dirty rows are tracked and there are some dirty rows
+    const hasDirtyRows =
+      state.dirtyRows &&
+      Array.from(state.dirtyRows.values()).some((set) => set.size > 0);
+
+    const validationErrors = hasDirtyRows
+      ? await applyValidationsToSpecificRows(
+          this.importerDefinition.sheets,
+          state.sheetData,
+          state.validationErrors,
+          state.dirtyRows!
+        ).catch(() => state.validationErrors)
+      : await applyValidations(
+          this.importerDefinition.sheets,
+          state.sheetData
+        ).catch(() => state.validationErrors);
 
     return { ...state, validationErrors };
   }
@@ -188,6 +200,9 @@ export class OuterStateBuilder extends StateBuilder {
 }
 
 export class InnerStateBuilder extends StateBuilder {
+  private validationTimeoutId: NodeJS.Timeout | null = null;
+  private static readonly VALIDATION_DEBOUNCE_MS = 400;
+
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(
     importerDefinition: StateBuilderImporterDefinition,
@@ -203,6 +218,15 @@ export class InnerStateBuilder extends StateBuilder {
     'CELL_CHANGED',
     'REMOVE_ROWS',
   ]);
+
+  private async runValidation(dispatch: Dispatch<ImporterAction>, runId: string) {
+    console.log(`[PERF] Running debounced validation - Run ID: ${runId}`);
+    const finalState = await this.getState();
+    dispatch({
+      type: 'VALIDATION_COMPLETED',
+      payload: { errors: finalState.validationErrors, runId },
+    });
+  }
 
   public async dispatchChange(dispatch: Dispatch<ImporterAction>) {
     const shouldValidate = this.buildSteps.some((step) =>
@@ -220,11 +244,16 @@ export class InnerStateBuilder extends StateBuilder {
     });
 
     if (shouldValidate) {
-      const finalState = await this.getState();
-      dispatch({
-        type: 'VALIDATION_COMPLETED',
-        payload: { errors: finalState.validationErrors, runId },
-      });
+      // Clear any pending validation
+      if (this.validationTimeoutId) {
+        clearTimeout(this.validationTimeoutId);
+      }
+
+      // Debounce validation - only validate after user stops typing
+      this.validationTimeoutId = setTimeout(() => {
+        this.runValidation(dispatch, runId);
+        this.validationTimeoutId = null;
+      }, InnerStateBuilder.VALIDATION_DEBOUNCE_MS);
     }
   }
 }

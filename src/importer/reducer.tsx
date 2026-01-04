@@ -5,7 +5,10 @@ import {
   useContext,
   useRef,
 } from 'preact/hooks';
-import { applyTransformations } from '../transformers';
+import {
+  applyTransformations,
+  applyTransformationsToSingleRow,
+} from '../transformers';
 import {
   CellChangedPayload,
   ImporterAction,
@@ -83,6 +86,7 @@ export const reducer = (
       };
     }
     case 'CELL_CHANGED': {
+      const startTime = performance.now();
       const currentData = state.sheetData;
 
       const newData = currentData.map((sheet) => {
@@ -101,9 +105,31 @@ export const reducer = (
         }
       });
 
+      // Only transform the changed row instead of all rows
+      const transformedData = applyTransformationsToSingleRow(
+        state.sheetDefinitions,
+        newData,
+        action.payload.sheetId,
+        action.payload.rowIndex
+      );
+
+      // Track dirty row for incremental validation
+      const dirtyRows = new Map(state.dirtyRows);
+      if (!dirtyRows.has(action.payload.sheetId)) {
+        dirtyRows.set(action.payload.sheetId, new Set());
+      }
+      dirtyRows.get(action.payload.sheetId)!.add(action.payload.rowIndex);
+
+      const duration = performance.now() - startTime;
+      const totalRows = currentData.reduce((sum, s) => sum + s.rows.length, 0);
+      console.log(
+        `[PERF] Cell changed - Row: ${action.payload.rowIndex} - Total rows: ${totalRows} - Duration: ${duration.toFixed(2)}ms`
+      );
+
       return {
         ...state,
-        sheetData: applyTransformations(state.sheetDefinitions, newData),
+        sheetData: transformedData,
+        dirtyRows,
       };
     }
 
@@ -183,6 +209,8 @@ export const reducer = (
         validationErrors: action.payload.errors,
         validationInProgress: false,
         validationRunId: undefined,
+        // Clear dirty rows after validation completes
+        dirtyRows: new Map(),
       };
     default:
       return state;

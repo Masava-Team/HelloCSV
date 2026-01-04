@@ -178,16 +178,40 @@ export function getMappedData(
   mappings: ColumnMapping[],
   parsedFile: ParsedFile
 ): MappedData {
+  const startTime = performance.now();
+  console.log(
+    `[PERF] Starting data mapping - Input rows: ${parsedFile.data.length}`
+  );
+
   const data = parsedFile.data;
 
+  const mapStart = performance.now();
   const mappedData = mapRegularColumns(sheetDefinitions, mappings, data);
+  console.log(
+    `[PERF] Regular columns mapped - Duration: ${(performance.now() - mapStart).toFixed(2)}ms`
+  );
 
+  const calcStart = performance.now();
   const mappedDataWithCalculatedColumns = mapCalculatedColumns(
     sheetDefinitions,
     mappedData
   );
+  console.log(
+    `[PERF] Calculated columns mapped - Duration: ${(performance.now() - calcStart).toFixed(2)}ms`
+  );
 
-  return mapReferenceColumns(sheetDefinitions, mappedDataWithCalculatedColumns);
+  const refStart = performance.now();
+  const result = mapReferenceColumns(
+    sheetDefinitions,
+    mappedDataWithCalculatedColumns
+  );
+  console.log(
+    `[PERF] Reference columns mapped - Duration: ${(performance.now() - refStart).toFixed(2)}ms`
+  );
+
+  const duration = performance.now() - startTime;
+  console.log(`[PERF] Data mapping completed - Duration: ${duration.toFixed(2)}ms`);
+  return result;
 }
 
 export function allowUserToMapColumn(
